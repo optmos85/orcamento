@@ -40,6 +40,9 @@ STATIC_FILE  = Path(__file__).parent / "index.html"
 BACKUP_DIR   = Path("backups"); BACKUP_DIR.mkdir(exist_ok=True)
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 GMAIL_USER   = os.environ.get("GMAIL_USER", "")
+# Debug: mostrar se variáveis chegaram
+print(f"[ENV] DATABASE_URL set: {bool(DATABASE_URL)} len={len(DATABASE_URL)}")
+print(f"[ENV] DATABASE_URL starts: {DATABASE_URL[:30] if DATABASE_URL else 'EMPTY'}")
 GMAIL_PASS   = os.environ.get("GMAIL_APP_PASS", "")
 APP_URL      = os.environ.get("APP_URL", "http://localhost:8000")
 
