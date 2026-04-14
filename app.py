@@ -26,9 +26,12 @@ except ImportError:
 
 try:
     import psycopg2
-    from psycopg2.extras import RealDictCursor; DB_OK = True
-except ImportError:
+    from psycopg2.extras import RealDictCursor
+    DB_OK = True
+    print(f"✅ psycopg2 importado: {psycopg2.__version__}")
+except Exception as _pg_err:
     DB_OK = False
+    print(f"⚠ psycopg2 import falhou: {type(_pg_err).__name__}: {_pg_err}")
 
 from fastapi import FastAPI, HTTPException, UploadFile, File, Query, Cookie, Response, Depends
 from fastapi.responses import HTMLResponse, StreamingResponse
