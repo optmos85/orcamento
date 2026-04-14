@@ -286,6 +286,31 @@ input:focus,select:focus{border-color:var(--green)}input::placeholder{color:var(
       </div>
       <button class="btn btn-primary" style="width:100%;margin-top:16px;padding:10px" onclick="doSetup()">Criar conta e entrar</button>
     </div>
+    <!-- Esqueci a senha -->
+    <div id="forgotPanel" style="display:none">
+      <h3 style="margin-bottom:14px;font-size:.95rem">Recuperar senha</h3>
+      <div class="form-grid">
+        <div class="field"><label>E-mail cadastrado</label><input id="fpEmail" type="email" placeholder="seu@email.com"/></div>
+      </div>
+      <div id="fpMsg" style="display:none;font-size:.8rem;margin-top:8px;text-align:center"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:14px;padding:10px" onclick="doForgotPassword()">Enviar link de recuperação</button>
+      <div style="text-align:center;margin-top:10px">
+        <span style="font-size:.8rem;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="showLoginPanel()">← Voltar ao login</span>
+      </div>
+    </div>
+
+    <!-- Trocar senha (primeiro acesso ou reset) -->
+    <div id="firstPwPanel" style="display:none">
+      <h3 style="margin-bottom:6px;font-size:.95rem">🔐 Criar nova senha</h3>
+      <p style="font-size:.82rem;color:var(--muted);margin-bottom:14px">Você precisa criar uma senha pessoal antes de continuar.</p>
+      <div class="form-grid">
+        <div class="field"><label>Nova Senha</label><input id="fpNewPw" type="password" placeholder="mínimo 6 caracteres"/></div>
+        <div class="field"><label>Confirmar Senha</label><input id="fpConfPw" type="password" placeholder="repita a senha"/></div>
+      </div>
+      <div id="fpPwMsg" style="display:none;font-size:.8rem;margin-top:8px;text-align:center;color:var(--red)"></div>
+      <button class="btn btn-primary" style="width:100%;margin-top:14px;padding:10px" onclick="doSetFirstPassword()">Salvar nova senha</button>
+    </div>
+
     <!-- Login normal -->
     <div id="loginPanel">
       <div class="form-grid">
@@ -294,6 +319,9 @@ input:focus,select:focus{border-color:var(--green)}input::placeholder{color:var(
       </div>
       <div id="loginError" style="display:none;color:var(--red);font-size:.8rem;margin-top:8px;text-align:center"></div>
       <button class="btn btn-primary" style="width:100%;margin-top:16px;padding:10px" onclick="doLogin()">Entrar</button>
+      <div style="text-align:center;margin-top:12px">
+        <span style="font-size:.8rem;color:var(--muted);cursor:pointer;text-decoration:underline" onclick="showForgotPanel()">Esqueci minha senha</span>
+      </div>
     </div>
   </div>
 </div>
@@ -687,15 +715,17 @@ input:focus,select:focus{border-color:var(--green)}input::placeholder{color:var(
 <div class="modal-overlay" id="modalAddProfile">
   <div class="modal">
     <div class="modal-header"><h3>Adicionar Perfil</h3><button class="modal-close" onclick="closeModal('modalAddProfile')">×</button></div>
+    <p style="font-size:.81rem;color:var(--muted);margin-bottom:14px">Uma senha temporária será gerada automaticamente e enviada por e-mail. O usuário será obrigado a trocar a senha no primeiro acesso.</p>
     <div class="form-grid">
-      <div class="field"><label>ID</label><input id="apId" placeholder="ex: maria"/></div>
-      <div class="field"><label>Nome</label><input id="apName" placeholder="ex: Maria Silva"/></div>
-      <div class="field"><label>Senha</label><input id="apPw" type="password" placeholder="senha"/></div>
-      <div class="field"><label>Cor</label><input id="apColor" type="color" value="#4f8fff" style="width:60px;height:36px;padding:2px;cursor:pointer"/></div>
+      <div class="field"><label>ID (login)</label><input id="apId" placeholder="ex: maria"/></div>
+      <div class="field"><label>Nome completo</label><input id="apName" placeholder="ex: Maria Silva"/></div>
+      <div class="field"><label>E-mail</label><input id="apEmail" type="email" placeholder="maria@email.com"/></div>
+      <div class="field"><label>Cor do perfil</label><input id="apColor" type="color" value="#4f8fff" style="width:60px;height:36px;padding:2px;cursor:pointer"/></div>
     </div>
+    <div id="apResult" style="display:none;margin-top:10px;padding:10px;background:rgba(46,204,133,.1);border-radius:8px;border:1px solid rgba(46,204,133,.3);font-size:.82rem"></div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModal('modalAddProfile')">Cancelar</button>
-      <button class="btn btn-primary" onclick="addProfile()">Criar</button>
+      <button class="btn btn-primary" onclick="addProfile()">Convidar</button>
     </div>
   </div>
 </div>
@@ -890,6 +920,7 @@ async function init() {
 
   initTheme();
   initKeyboard();
+  checkResetToken();
   await checkAuth();
 }
 
@@ -929,7 +960,7 @@ function showApp() {
 }
 
 async function doSetup() {
-  const body = {user_id:document.getElementById('suId').value.trim(),name:document.getElementById('suName').value.trim(),password:document.getElementById('suPw').value,color:document.getElementById('suColor').value};
+  const body = {user_id:document.getElementById('suId').value.trim(),name:document.getElementById('suName').value.trim(),email:document.getElementById('suEmail').value.trim(),password:document.getElementById('suPw').value,color:document.getElementById('suColor').value};
   if(!body.user_id||!body.name||!body.password){toast('Preencha todos os campos','red');return;}
   try {
     const r = await fetch('/auth/setup',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(body)}).then(x=>x.json());
@@ -943,7 +974,9 @@ async function doLogin() {
   try {
     const r = await fetch('/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'include',body:JSON.stringify(body)});
     if(!r.ok){document.getElementById('loginError').style.display='block';document.getElementById('loginError').textContent='Usuário ou senha incorretos.';return;}
-    const data=await r.json(); state.user=data.user; showApp(); toast(`✅ Bem-vindo, ${data.user.name}!`);
+    const data=await r.json(); state.user=data.user;
+    if (data.must_change_password) { showFirstPwPanel(); toast('Crie sua senha pessoal para continuar.','blue'); }
+    else { showApp(); toast(`✅ Bem-vindo, ${data.user.name}!`); }
   } catch(e){toast('Erro no login','red');}
 }
 
@@ -973,7 +1006,7 @@ async function openProfileModal() {
         <div style="width:30px;height:30px;border-radius:50%;background:${p.color};display:flex;align-items:center;justify-content:center;font-weight:700;color:#fff;font-size:.8rem">${p.name[0]}</div>
         <div><div style="font-size:.85rem;font-weight:600">${p.name}</div><div style="font-size:.72rem;color:var(--muted)">${p.id} · ${p.role}</div></div>
       </div>
-      ${p.id!==state.user?.id?`<button class="btn btn-danger btn-sm" onclick="deleteProfile('${p.id}')">Excluir</button>`:'<span style="font-size:.72rem;color:var(--green)">● Você</span>'}
+      ${p.id!==state.user?.id?`<div style="display:flex;gap:5px"><button class="btn btn-ghost btn-sm" onclick="adminResetPw('${p.id}','${p.name}')" title="Enviar link de reset">🔑 Reset</button><button class="btn btn-danger btn-sm" onclick="deleteProfile('${p.id}')">Excluir</button></div>`:'<span style="font-size:.72rem;color:var(--green)">● Você</span>'}
     </div>`).join('')}
     </div>`:''}
   `;
@@ -981,10 +1014,18 @@ async function openProfileModal() {
 }
 
 async function addProfile() {
-  const body={user_id:document.getElementById('apId').value.trim(),name:document.getElementById('apName').value.trim(),password:document.getElementById('apPw').value,color:document.getElementById('apColor').value};
-  if(!body.user_id||!body.name||!body.password){toast('Preencha todos os campos','red');return;}
-  await API('/profiles',{method:'POST',body:JSON.stringify(body)});
-  closeModal('modalAddProfile'); toast('✅ Perfil criado!');
+  const body={user_id:document.getElementById('apId').value.trim(),name:document.getElementById('apName').value.trim(),email:document.getElementById('apEmail').value.trim(),color:document.getElementById('apColor').value};
+  if(!body.user_id||!body.name||!body.email){toast('Preencha ID, Nome e E-mail','red');return;}
+  try {
+    const r=await API('/profiles/invite',{method:'POST',body:JSON.stringify(body)});
+    const res=document.getElementById('apResult');
+    res.style.display='block';
+    res.innerHTML=r.email_sent
+      ? '✅ Convite enviado para '+body.email+'. O usuário receberá as instruções por e-mail.'
+      : '⚠️ E-mail não configurado no servidor.<br>Passe esta senha temporária para o usuário: <strong>'+r.temp_pass+'</strong><br>Ele será obrigado a trocar no primeiro acesso.';
+    toast(r.email_sent ? '✅ Convite enviado!' : 'Usuário criado — veja a senha temporária', r.email_sent?'green':'blue');
+    setTimeout(()=>{ closeModal('modalAddProfile'); document.getElementById('apResult').style.display='none'; }, 6000);
+  } catch(e) { toast('Erro: '+(e.message||e),'red'); }
 }
 
 async function deleteProfile(id){
@@ -2086,6 +2127,106 @@ async function pdfImport() {
   }
   toast('✅ ' + count + ' lançamentos importados!');
   await loadMonth();
+}
+
+
+// ════ RECUPERAÇÃO DE SENHA & PRIMEIRO ACESSO ══════════════
+
+function showForgotPanel() {
+  document.getElementById('loginPanel').style.display  = 'none';
+  document.getElementById('forgotPanel').style.display = 'block';
+  document.getElementById('setupPanel').style.display  = 'none';
+}
+function showLoginPanel() {
+  document.getElementById('loginPanel').style.display  = 'block';
+  document.getElementById('forgotPanel').style.display = 'none';
+  document.getElementById('firstPwPanel').style.display = 'none';
+}
+function showFirstPwPanel() {
+  document.getElementById('loginPanel').style.display   = 'none';
+  document.getElementById('forgotPanel').style.display  = 'none';
+  document.getElementById('firstPwPanel').style.display = 'block';
+  document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+async function doForgotPassword() {
+  const email = document.getElementById('fpEmail').value.trim();
+  if (!email) { showMsg('fpMsg','Informe o e-mail','red'); return; }
+  try {
+    await fetch('/auth/forgot-password', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({email})});
+    showMsg('fpMsg','Se o e-mail estiver cadastrado, você receberá as instruções em breve.','green');
+  } catch(e) { showMsg('fpMsg','Erro ao enviar. Tente novamente.','red'); }
+}
+
+async function doSetFirstPassword() {
+  const pw  = document.getElementById('fpNewPw').value;
+  const pw2 = document.getElementById('fpConfPw').value;
+  const msg = document.getElementById('fpPwMsg');
+  if (pw.length < 6) { showMsg('fpPwMsg','Mínimo 6 caracteres','red'); return; }
+  if (pw !== pw2)    { showMsg('fpPwMsg','As senhas não coincidem','red'); return; }
+  try {
+    const r = await fetch('/auth/set-first-password', {method:'POST',
+      headers:{'Content-Type':'application/json'}, credentials:'include',
+      body:JSON.stringify({new_password: pw})});
+    if (!r.ok) { const e=await r.json(); showMsg('fpPwMsg',e.detail||'Erro','red'); return; }
+    toast('✅ Senha criada com sucesso!');
+    document.getElementById('loginOverlay').classList.add('hidden');
+    // re-check auth status
+    await checkAuth();
+    if (state.user) showApp();
+  } catch(e) { showMsg('fpPwMsg','Erro: '+e.message,'red'); }
+}
+
+function showMsg(id, msg, type) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.color   = type === 'green' ? 'var(--green)' : 'var(--red)';
+  el.textContent   = msg;
+}
+
+// Verifica se há token de reset na URL
+function checkResetToken() {
+  const params = new URLSearchParams(window.location.search);
+  const token  = params.get('reset_token');
+  if (!token) return;
+  // Remove token da URL sem recarregar
+  window.history.replaceState({}, '', '/');
+  // Mostra painel de nova senha com lógica de reset
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  const panel = document.getElementById('firstPwPanel');
+  panel.style.display = 'block';
+  document.getElementById('loginPanel').style.display  = 'none';
+  document.getElementById('forgotPanel').style.display = 'none';
+  // Override the save button to use reset endpoint
+  document.getElementById('firstPwPanel').setAttribute('data-reset-token', token);
+  const title = panel.querySelector('h3');
+  if (title) title.textContent = '🔐 Redefinir Senha';
+  const btn = panel.querySelector('button');
+  if (btn) btn.onclick = async function() {
+    const pw  = document.getElementById('fpNewPw').value;
+    const pw2 = document.getElementById('fpConfPw').value;
+    if (pw.length < 6) { showMsg('fpPwMsg','Mínimo 6 caracteres','red'); return; }
+    if (pw !== pw2)    { showMsg('fpPwMsg','As senhas não coincidem','red'); return; }
+    try {
+      const r = await fetch('/auth/reset-password', {method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({token, new_password: pw})});
+      if (!r.ok) { const e=await r.json(); showMsg('fpPwMsg',e.detail||'Token inválido','red'); return; }
+      toast('✅ Senha redefinida! Faça login.');
+      showLoginPanel();
+    } catch(e) { showMsg('fpPwMsg','Erro: '+e.message,'red'); }
+  };
+}
+
+
+async function adminResetPw(id, name) {
+  if (!confirm(`Enviar link de redefinição de senha para "${name}"?`)) return;
+  try {
+    const r = await API(`/profiles/${id}/reset-password`, {method:'PUT', body:'{}'});
+    if (r.email_sent) toast(`✅ Link enviado para ${name}!`);
+    else toast(`⚠️ E-mail não configurado. O usuário precisará usar "Esqueci minha senha" quando tiver e-mail cadastrado.`, 'blue');
+  } catch(e) { toast('Erro: '+(e.message||e), 'red'); }
 }
 
 // ════ BOOT ════
