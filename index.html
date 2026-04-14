@@ -265,6 +265,12 @@ input:focus,select:focus{border-color:var(--green)}input::placeholder{color:var(
 
 <!-- ════ LOGIN ════ -->
 <div id="loginOverlay" class="hidden">
+  <!-- Loading screen shown while checking auth -->
+  <div id="loadingScreen" style="position:fixed;inset:0;background:var(--bg);z-index:8999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+    <div style="font-size:2.5rem">💰</div>
+    <div style="color:var(--green);font-size:1rem;font-weight:600">Orçamento</div>
+    <div style="color:var(--muted);font-size:.82rem">Carregando...</div>
+  </div>
   <div class="login-box">
     <div class="login-logo">
       <h1>💰 Orçamento</h1>
