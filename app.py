@@ -56,7 +56,12 @@ def get_conn():
     if not DB_OK: raise HTTPException(500, "psycopg2 não instalado")
     if not DATABASE_URL: raise HTTPException(500, "DATABASE_URL não configurada")
     url = DATABASE_URL.replace("postgres://", "postgresql://", 1)
-    return psycopg2.connect(url, cursor_factory=RealDictCursor)
+    # Supabase Session Pooler requer sslmode
+    if "sslmode" not in url:
+        sep = "&" if "?" in url else "?"
+        url = url + sep + "sslmode=require"
+    return psycopg2.connect(url, cursor_factory=RealDictCursor,
+                            connect_timeout=10)
 
 def init_db():
     if not DB_OK or not DATABASE_URL:
@@ -91,7 +96,8 @@ def init_db():
         print("✅ DB OK")
     except Exception as e:
         import traceback
-        print(f"⚠ DB init error: {e}")
+        print(f"⚠ DB init error TYPE: {type(e).__name__}")
+        print(f"⚠ DB init error MSG: {e}")
         print(traceback.format_exc())
 
 @app.on_event("startup")
