@@ -59,7 +59,9 @@ def init_db():
     if not DB_OK or not DATABASE_URL:
         print("⚠ Sem banco — usando JSON local"); return
     try:
-        with get_conn() as conn:
+        conn = get_conn()
+        print(f'✅ DB conectado: {conn.dsn[:50]}')
+        with conn:
             with conn.cursor() as cur:
                 cur.execute("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -85,7 +87,9 @@ def init_db():
                 conn.commit()
         print("✅ DB OK")
     except Exception as e:
+        import traceback
         print(f"⚠ DB init error: {e}")
+        print(traceback.format_exc())
 
 @app.on_event("startup")
 async def startup():
@@ -413,7 +417,8 @@ async def setup(req: SetupReq, response: Response):
     try:
         if db_list_users(): raise HTTPException(400, "Já configurado")
     except HTTPException: raise
-    except: pass
+    except Exception as e:
+        print(f"⚠ setup db_list_users error: {e}")
     salt = secrets.token_hex(16)
     db_save_user({"id":req.user_id,"name":req.name,"email":req.email,"salt":salt,
                   "password_hash":hash_pw(req.password,salt),"color":req.color,
